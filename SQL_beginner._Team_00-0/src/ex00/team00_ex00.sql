@@ -1,34 +1,42 @@
 CREATE TABLE IF NOT EXISTS roads (
-    node_1 VARCHAR,
-    node_2 VARCHAR,
+    node1 VARCHAR,
+    node2 VARCHAR,
     cost INTEGER
 );
 
-INSERT INTO roads (node_1, node_2, cost)
+INSERT INTO roads (node1, node2, cost)
 VALUES ('a', 'b', 10),
       ('b', 'a', 10),
-      ('a', 'c', 15),
-      ('c', 'a', 15),
       ('a', 'd', 20),
       ('d', 'a', 20),
-      ('b', 'd', 25),
-      ('d', 'b', 25),
-      ('d', 'c', 30),
-      ('c', 'd', 30),
+      ('a', 'c', 15),
+      ('c', 'a', 15),
+      ('c', 'b', 35),
       ('b', 'c', 35),
-      ('c', 'b', 35);
+      ('d', 'b', 25),
+      ('b', 'd', 25),
+      ('d', 'c', 30),
+      ('c', 'd', 30);
 
-WITH RECURSIVE t AS (
-    SELECT node_1 AS begin_tour, node_1, node_2, cost, cost AS sum_cost, 1 AS iter FROM roads WHERE node_1 = 'a'
-    UNION
-    SELECT CONCAT(t.begin_tour, ',', t.node_2), roads.node_1, roads.node_2, roads.cost, sum_cost + roads.cost, iter + 1 FROM roads
-        JOIN t ON roads.node_1 = t.node_2 AND roads.node_1 != t.node_1
-    WHERE iter < (SELECT COUNT(DISTINCT roads.node_1) - 1 FROM roads) AND strpos(CONCAT(t.begin_tour, ',', t.node_2), roads.node_2) = 0),
-     all_tour AS (
-         SELECT sum_cost + roads.cost as total_cost, CONCAT('{', t.begin_tour, ',', roads.node_1, ',', roads.node_2, '}') AS tour FROM roads
-         JOIN t ON t.node_2 = roads.node_1 AND roads.node_1 != t.node_1
-         WHERE roads.node_2 = 'a' AND t.iter = (SELECT COUNT(DISTINCT roads.node_1) - 1 FROM roads)
-     ORDER BY total_cost, tour)
+WITH RECURSIVE a_traces AS (
+    SELECT node1 as tour, node1, node2, cost, cost AS summ
+    FROM roads WHERE node1 = 'a'
+    UNION ALL
+    SELECT one.tour || ', ' || two.node1 AS tour,
+           two.node1, two.node2, two.cost, one.summ + two.cost AS summ
+    FROM roads AS two
+    JOIN a_traces AS one ON two.node1 = one.node2
+    WHERE tour NOT LIKE '%' || two.node1 || '%'
+),
+refresh_a_traces AS (SELECT summ AS total_cost, CONCAT('{', tour, ', a', '}') AS tour
+		FROM a_traces
+		WHERE LENGTH(tour) = 10 AND node2 = 'a'
+		ORDER BY total_cost)
 
-SELECT * FROM all_tour WHERE total_cost = (SELECT MIN(total_cost) FROM all_tour);
+-- SELECT * FROM a_traces;
 
+SELECT total_cost, tour FROM refresh_a_traces
+WHERE total_cost = (SELECT MIN(total_cost) FROM refresh_a_traces)
+ORDER BY total_cost, tour;
+
+-- DROP TABLE roads;
